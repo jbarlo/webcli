@@ -1,0 +1,29 @@
+{
+  "name": "web-cli",
+  "version": "0.1.0",
+  "description": "CLI tool for AI-friendly web navigation using text-based browsing",
+  "type": "module",
+  "bin": {
+    "web-cli": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "keywords": ["cli", "web", "browser", "automation", "ai"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^1.0.0",
+    "ai": "^4.0.0",
+    "cheerio": "^1.0.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
