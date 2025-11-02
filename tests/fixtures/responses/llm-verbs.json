@@ -1,0 +1,50 @@
+{
+  "simple": [
+    {
+      "name": "about",
+      "description": "Navigate to About page",
+      "type": "navigate",
+      "target": "https://example.com/about"
+    },
+    {
+      "name": "contact",
+      "description": "Navigate to Contact page",
+      "type": "navigate",
+      "target": "https://example.com/contact"
+    },
+    {
+      "name": "search",
+      "description": "Search the site",
+      "type": "form",
+      "params": ["query"],
+      "target": "/search"
+    }
+  ],
+  "container": [
+    {
+      "name": "products",
+      "description": "View keyboard products",
+      "type": "navigate",
+      "subverbs": [
+        {
+          "name": "logitech",
+          "description": "Logitech Mechanical Keyboard",
+          "type": "navigate",
+          "target": "https://example.com/product/keyboard-1"
+        },
+        {
+          "name": "microsoft",
+          "description": "Microsoft Ergonomic Keyboard",
+          "type": "navigate",
+          "target": "https://example.com/product/keyboard-2"
+        }
+      ]
+    },
+    {
+      "name": "next-page",
+      "description": "Go to next page",
+      "type": "navigate",
+      "target": "https://example.com/s?k=keyboard&page=2"
+    }
+  ]
+}
