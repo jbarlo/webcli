@@ -95,7 +95,8 @@ describe('Browser', () => {
       await browser.fetch(testUrl);
 
       expect(mockExecAsync).toHaveBeenCalledWith(
-        expect.stringContaining(testUrl)
+        expect.stringContaining(testUrl),
+        expect.objectContaining({ maxBuffer: expect.any(Number) })
       );
     });
   });
