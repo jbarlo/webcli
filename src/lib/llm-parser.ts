@@ -1,23 +1,16 @@
 import { Verb, ExecutionPlan } from "../types/index.js";
 import * as cheerio from 'cheerio';
 
-// Lazy load AI SDK dependencies
-let generateObject: any;
-let createAnthropic: any;
-let z: any;
+// Lazy load Agent SDK
+let query: any;
 
-async function loadAIDeps() {
-  if (!generateObject) {
+async function loadAgentSDK() {
+  if (!query) {
     try {
-      const aiModule = await import("ai");
-      const anthropicModule = await import("@ai-sdk/anthropic");
-      const zodModule = await import("zod");
-
-      generateObject = aiModule.generateObject;
-      createAnthropic = anthropicModule.createAnthropic;
-      z = zodModule.z;
+      const agentModule = await import("@anthropic-ai/claude-agent-sdk");
+      query = agentModule.query;
     } catch (err) {
-      // Dependencies not installed
+      // SDK not installed
       return false;
     }
   }
@@ -25,29 +18,27 @@ async function loadAIDeps() {
 }
 
 export class LLMParser {
-  private model: any = null;
   private initialized = false;
+  private available = false;
 
   async init() {
     if (this.initialized) return;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return;
-
-    const loaded = await loadAIDeps();
-    if (!loaded) return;
-
-    try {
-      const anthropic = createAnthropic({ apiKey });
-      this.model = anthropic("claude-4-sonnet-20250514");
+    const loaded = await loadAgentSDK();
+    if (!loaded) {
       this.initialized = true;
-    } catch (err) {
-      console.warn("Failed to initialize LLM parser:", err);
+      this.available = false;
+      return;
     }
+
+    // Agent SDK reads credentials from ~/.claude/settings.json or ANTHROPIC_API_KEY
+    // No explicit initialization needed - it handles auth automatically
+    this.initialized = true;
+    this.available = true;
   }
 
   isAvailable(): boolean {
-    return this.model !== null;
+    return this.available;
   }
 
   /**
@@ -85,34 +76,6 @@ export class LLMParser {
     }
 
     try {
-      const VerbSchema: any = z.object({
-        name: z
-          .string()
-          .describe('Short kebab-case verb name (e.g., "add-to-cart")'),
-        description: z
-          .string()
-          .describe("Human-readable description with parameter info"),
-        type: z.enum(["navigate", "form", "action"]).describe("Type of action"),
-        params: z
-          .array(z.string())
-          .optional()
-          .describe("Parameter names if needed"),
-        target: z
-          .string()
-          .optional()
-          .describe("For navigate type: the full target URL. For others: CSS selector or identifier."),
-        subverbs: z
-          .array(z.lazy(() => VerbSchema))
-          .optional()
-          .describe("Optional: group similar verbs under this parent (use when 10+ similar items exist)"),
-      });
-
-      const ParsedPageSchema = z.object({
-        verbs: z
-          .array(VerbSchema)
-          .describe("List of available actions on this page"),
-      });
-
       // Extract links if HTML is provided
       const linksList = html ? this.extractLinks(html) : '';
 
@@ -137,7 +100,21 @@ For each action:
 - Set type="navigate" and include the full target URL
 - If there are many similar items (10+), group them under a parent verb using subverbs for namespacing
 
-Limit to the 10 most relevant top-level actions (containers can have more subverbs).`;
+Limit to the 10 most relevant top-level actions (containers can have more subverbs).
+
+IMPORTANT: Respond with ONLY valid JSON in this exact format:
+{
+  "verbs": [
+    {
+      "name": "kebab-case-name",
+      "description": "Human-readable description",
+      "type": "navigate" | "form" | "action",
+      "params": ["param1", "param2"],  // optional
+      "target": "url or identifier",    // optional
+      "subverbs": [...]                 // optional, same structure
+    }
+  ]
+}`;
       } else {
         prompt = `You are analyzing a web page to extract the MOST IMPORTANT actions for a CLI automation tool.
 
@@ -169,16 +146,45 @@ For each action:
 - Set type="navigate" and include the full target URL
 - If there are many similar items (10+), group them under a parent verb using subverbs for namespacing
 
-Limit to the 10 most impactful top-level actions (containers can have more subverbs).`;
+Limit to the 10 most impactful top-level actions (containers can have more subverbs).
+
+IMPORTANT: Respond with ONLY valid JSON in this exact format:
+{
+  "verbs": [
+    {
+      "name": "kebab-case-name",
+      "description": "Human-readable description",
+      "type": "navigate" | "form" | "action",
+      "params": ["param1", "param2"],  // optional
+      "target": "url or identifier",    // optional
+      "subverbs": [...]                 // optional, same structure
+    }
+  ]
+}`;
       }
 
-      const result = await generateObject({
-        model: this.model,
-        schema: ParsedPageSchema,
+      // Use Agent SDK query
+      let fullResponse = '';
+      for await (const message of query({
         prompt,
-      });
+        options: {
+          model: 'claude-sonnet-4-5',
+          permissionMode: 'bypassPermissions', // No interactive prompts
+          systemPrompt: 'You are a precise JSON generator. Always output valid JSON only, no markdown, no explanations.',
+        }
+      })) {
+        if (message.type === 'result') {
+          fullResponse = message.result.trim();
+          break;
+        }
+      }
 
-      return result.object.verbs;
+      // Parse JSON response
+      // Remove markdown code blocks if present
+      let jsonStr = fullResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+      const parsed = JSON.parse(jsonStr);
+      return parsed.verbs || [];
     } catch (err) {
       console.warn("LLM parsing failed:", err);
       return [];
@@ -256,23 +262,6 @@ Limit to the 10 most impactful top-level actions (containers can have more subve
     }
 
     try {
-      const ExecutionPlanSchema = z.object({
-        method: z
-          .enum(["navigate", "form", "action"])
-          .describe("Execution method"),
-        target_url: z
-          .string()
-          .optional()
-          .describe("URL to navigate to (for navigate method)"),
-        command: z
-          .string()
-          .optional()
-          .describe("Shell command to execute (if needed)"),
-        description: z
-          .string()
-          .describe("Human-readable description of what will happen"),
-      });
-
       // Convert HTML to markdown for cleaner, more compact representation
       const markdown = this.htmlToMarkdown(html);
 
@@ -330,15 +319,37 @@ ${contentToSend}
 
 Generate an execution plan. For now, only support "navigate" method using the links browser.
 If this is a navigation action, extract the target URL.
-If you cannot determine how to execute this action, explain why in the description.`;
+If you cannot determine how to execute this action, explain why in the description.
 
-      const result = await generateObject({
-        model: this.model,
-        schema: ExecutionPlanSchema,
+IMPORTANT: Respond with ONLY valid JSON in this exact format:
+{
+  "method": "navigate" | "form" | "action",
+  "target_url": "url to navigate to",     // optional
+  "command": "shell command if needed",    // optional
+  "description": "What will happen"
+}`;
+
+      // Use Agent SDK query
+      let fullResponse = '';
+      for await (const message of query({
         prompt,
-      });
+        options: {
+          model: 'claude-sonnet-4-5',
+          permissionMode: 'bypassPermissions',
+          systemPrompt: 'You are a precise JSON generator. Always output valid JSON only, no markdown, no explanations.',
+        }
+      })) {
+        if (message.type === 'result') {
+          fullResponse = message.result.trim();
+          break;
+        }
+      }
 
-      return result.object as ExecutionPlan;
+      // Parse JSON response
+      let jsonStr = fullResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const parsed = JSON.parse(jsonStr);
+
+      return parsed as ExecutionPlan;
     } catch (err) {
       console.warn("Execution planning failed:", err);
       return null;

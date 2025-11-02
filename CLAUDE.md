@@ -1,0 +1,1 @@
+- Prefer executing commands from the @justfile
