@@ -15,12 +15,15 @@ export class Browser {
    * Fetch a URL using links and return both dump and source
    */
   async fetch(url: string): Promise<BrowserResult> {
-    // Get text dump
-    const { stdout: text } = await execAsync(`links -dump "${url}"`);
+    // Get text dump (increased buffer for large pages)
+    const { stdout: text } = await execAsync(`links -dump "${url}"`, {
+      maxBuffer: 10 * 1024 * 1024 // 10MB
+    });
 
     // Get HTML source (may be gzipped)
     const { stdout: rawHtml } = await execAsync(`links -source "${url}"`, {
-      encoding: 'buffer'
+      encoding: 'buffer',
+      maxBuffer: 10 * 1024 * 1024 // 10MB
     });
 
     // Try to decompress if it's gzipped

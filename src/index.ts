@@ -15,6 +15,7 @@ config({ path: resolve(__dirname, '..', '.env') });
 // Dynamic imports to ensure dotenv loads first
 const { createNavCommand } = await import('./commands/nav.js');
 const { createTabCommand } = await import('./commands/tab.js');
+const { createViewCommand } = await import('./commands/view.js');
 const { createClearCommand } = await import('./commands/clear.js');
 const { createListCommand } = await import('./commands/list.js');
 const { createRefineCommand } = await import('./commands/refine.js');
@@ -29,6 +30,7 @@ program
 // Add commands
 program.addCommand(createNavCommand());
 program.addCommand(createTabCommand());
+program.addCommand(createViewCommand());
 program.addCommand(createClearCommand());
 program.addCommand(createListCommand());
 program.addCommand(createRefineCommand());

@@ -76,6 +76,32 @@ Options:
 - `--use-llm` - Force LLM parsing instead of HTML
 - `--json` - Output as JSON for programmatic use
 
+### `view <name>`
+
+View the full page text content of a tab. Unlike `tab` which shows only a 500 character preview, this displays the complete page text.
+
+```bash
+# View full page text
+node dist/index.js view shop
+
+# Limit to first 100 lines
+node dist/index.js view shop --limit 100
+
+# Output as JSON
+node dist/index.js view shop --json
+```
+
+Options:
+
+- `--limit <n>` - Limit output to first N lines
+- `--json` - Output as JSON for programmatic use
+
+Use cases:
+- Viewing product listings with prices
+- Reading full page content
+- Searching for specific information on a page
+- Extracting data from tables or lists
+
 ### `list`
 
 List all tabs.
@@ -91,6 +117,22 @@ Remove a named tab.
 ```bash
 node dist/index.js clear shop
 ```
+
+### `refine <name> [container] <guidance>`
+
+Re-extract verbs with custom AI guidance to customize how the LLM interprets a page.
+
+```bash
+# Refine all verbs on a page
+node dist/index.js refine shop "Focus only on keyboards under $100"
+
+# Refine a specific container's subverbs
+node dist/index.js refine shop products "Only mechanical keyboards with RGB"
+```
+
+Options:
+
+- `--json` - Output as JSON for programmatic use
 
 ## How It Works
 
@@ -167,6 +209,8 @@ node dist/index.js tab shop add-to-cart
 - [x] Gzip decompression for HTML source
 - [x] Two-phase verb discovery and execution
 - [x] Basic navigation execution
+- [x] Add `view` command to see full page text
+- [ ] Fix verb cache clearing on navigation (verbs are cleared when executing a verb that navigates, requiring re-refinement)
 - [ ] Handle form submissions with parameters
 - [ ] Add search/filter helpers
 - [ ] Better error messages
@@ -174,6 +218,41 @@ node dist/index.js tab shop add-to-cart
 - [ ] Package for npm
 - [ ] Support for POST requests
 - [ ] Better LLM prompt engineering
+
+## Known Issues
+
+### Verb Cache Clears on Navigation
+
+When you execute a verb that navigates to a new page, the verb cache is cleared. This means if you:
+
+1. Refine a page to get custom verbs
+2. Execute one of those verbs (which navigates)
+3. Try to execute another verb from the original refinement
+
+You'll get an error that the verb doesn't exist because the cache was cleared in step 2.
+
+**Workaround**: After each navigation, re-refine or check available verbs with `tab <name>`.
+
+**Example of the issue:**
+```bash
+# Start at home page
+node dist/index.js nav "store.example.com" browse
+
+# Refine to get verbs
+node dist/index.js refine browse "show me electronics and books"
+# Output: view-electronics, view-books
+
+# Navigate using first verb
+node dist/index.js tab browse view-electronics  # ✅ Works, navigates to electronics
+
+# Try to use second verb from same refinement
+node dist/index.js tab browse view-books  # ❌ Error: verb not found (cache cleared)
+
+# Need to go back and refine again
+node dist/index.js nav "store.example.com" browse
+node dist/index.js refine browse "show me books section"
+node dist/index.js tab browse view-books  # ✅ Now works
+```
 
 ## License
 

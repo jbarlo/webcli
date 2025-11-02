@@ -48,6 +48,30 @@ node dist/index.js tab shop select-product 1
 - `--json`: Always use when you need to parse output programmatically
 - `--use-llm`: Use proactively for known complex sites (Amazon, SPAs, JS-heavy pages)
 
+### `view <tab-name>`
+View the full page text content of a tab. Unlike `tab` which shows only a 500 character preview, this displays the complete page text.
+
+```bash
+# View full page text
+node dist/index.js view shop
+
+# Limit to first 100 lines
+node dist/index.js view shop --limit 100
+
+# Output as JSON
+node dist/index.js view shop --json
+```
+
+**Use cases**:
+- Viewing product listings with prices
+- Reading full page content (articles, documentation)
+- Searching for specific information on a page
+- Extracting data from tables or lists
+
+**Important flags**:
+- `--limit <n>`: Limit output to first N lines (useful for large pages)
+- `--json`: Output as JSON with metadata
+
 ### `list`
 List all existing tabs (run this before starting to check for existing sessions).
 
@@ -126,10 +150,11 @@ node dist/index.js refine shop products "Only extract mechanical keyboards with 
 1. **Check existing tabs**: `node dist/index.js list`
 2. **Navigate**: `node dist/index.js nav "url" descriptive-name [--use-llm]`
 3. **View verbs**: `node dist/index.js tab descriptive-name [--json]`
-4. **Refine if needed**: `node dist/index.js refine descriptive-name [container] "guidance"`
-5. **Execute verb**: `node dist/index.js tab descriptive-name verb-name [params...]`
-6. **Repeat steps 3-5** as needed for multi-step interactions
-7. **Clean up**: `node dist/index.js clear descriptive-name`
+4. **View full content** (if needed): `node dist/index.js view descriptive-name [--limit N]`
+5. **Refine if needed**: `node dist/index.js refine descriptive-name [container] "guidance"`
+6. **Execute verb**: `node dist/index.js tab descriptive-name verb-name [params...]`
+7. **Repeat steps 3-6** as needed for multi-step interactions
+8. **Clean up**: `node dist/index.js clear descriptive-name`
 
 ## Tab Management Best Practices
 
@@ -194,6 +219,58 @@ node dist/index.js tab form submit
 node dist/index.js clear form
 ```
 
+## Best Practices & Learnings
+
+### Use Verbs Instead of Direct URLs
+
+**IMPORTANT**: Always prefer using discovered verbs over manually constructing URLs.
+
+**❌ Don't do this:**
+```bash
+# Manually guessing URL paths
+node dist/index.js nav "shop.example.com/products/dept-27/cat-449" browse
+```
+
+**✅ Do this instead:**
+```bash
+# 1. Navigate to home page
+node dist/index.js nav "shop.example.com" browse
+
+# 2. Refine to get relevant verbs
+node dist/index.js refine browse "show me electronics section"
+
+# 3. Use the discovered verbs
+node dist/index.js tab browse view-electronics
+```
+
+**Why?** Manually constructed URLs often:
+- Point to wrong category IDs
+- Show incorrect or outdated content
+- Break when site structure changes
+- Miss authentication or session requirements
+
+Discovered verbs are extracted from the actual page HTML and are guaranteed to work.
+
+### Viewing Full Page Content
+
+Use the `view` command to see complete page text (not just the 500 char preview):
+
+```bash
+# View full page
+node dist/index.js view shop
+
+# View with line limit for large pages
+node dist/index.js view shop --limit 100
+
+# Pipe to grep to find specific content
+node dist/index.js view shop | grep -i "price"
+```
+
+This is essential for:
+- Extracting product prices and details
+- Finding specific information on pages
+- Debugging what content is actually available
+
 ## Error Handling
 
 If commands fail or verbs aren't discovered:
@@ -203,15 +280,20 @@ If commands fail or verbs aren't discovered:
    node dist/index.js nav "complex-site.com" test --use-llm
    ```
 
-2. **Check tab state**: If tab seems corrupted, suggest clearing and restarting
+2. **Use refine to get better verbs**: Instead of guessing URLs, refine to discover the right verbs
+   ```bash
+   node dist/index.js refine shop "show me the section I need"
+   ```
+
+3. **Check tab state**: If tab seems corrupted, suggest clearing and restarting
    ```bash
    node dist/index.js clear tab-name
    node dist/index.js nav "url" tab-name
    ```
 
-3. **Ask user**: Stop and get user input rather than making assumptions about how to proceed
+4. **Ask user**: Stop and get user input rather than making assumptions about how to proceed
 
-4. **Don't auto-fallback**: Don't silently fall back to WebFetch without explaining the issue
+5. **Don't auto-fallback**: Don't silently fall back to WebFetch without explaining the issue
 
 ## Build Requirements
 
