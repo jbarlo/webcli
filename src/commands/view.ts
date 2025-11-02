@@ -12,7 +12,7 @@ export function createViewCommand(): Command {
       try {
         await stateManager.init();
 
-        const tabData = stateManager.getTab(name);
+        const tabData = await stateManager.getTab(name);
         if (!tabData) {
           console.error(`Error: Tab "${name}" does not exist`);
           console.error(`Use "web-cli nav <url> ${name}" to create it`);

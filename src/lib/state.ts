@@ -4,62 +4,84 @@ import os from 'os';
 import { TabsState, Tab } from '../types/index.js';
 
 const STATE_DIR = path.join(os.homedir(), '.web-cli');
-const STATE_FILE = path.join(STATE_DIR, 'tabs.json');
+const TABS_DIR = path.join(STATE_DIR, 'tabs');
+
+const TAB_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,50}$/;
+
+export function validateTabName(name: string): void {
+  if (!TAB_NAME_PATTERN.test(name)) {
+    throw new Error(
+      `Invalid tab name "${name}". Tab names must be 1-50 characters and contain only letters, numbers, hyphens, and underscores.`
+    );
+  }
+}
 
 export class StateManager {
-  private state: TabsState = {};
+  private getTabPath(name: string): string {
+    return path.join(TABS_DIR, `${name}.json`);
+  }
 
   async init(): Promise<void> {
-    // Ensure state directory exists
-    try {
-      await fs.mkdir(STATE_DIR, { recursive: true });
-    } catch (err) {
-      // Directory might already exist
-    }
-
-    // Load existing state
-    try {
-      const data = await fs.readFile(STATE_FILE, 'utf-8');
-      this.state = JSON.parse(data);
-    } catch (err) {
-      // File doesn't exist yet, start with empty state
-      this.state = {};
-    }
+    // Ensure tabs directory exists
+    await fs.mkdir(TABS_DIR, { recursive: true });
   }
 
-  async save(): Promise<void> {
-    await fs.writeFile(STATE_FILE, JSON.stringify(this.state, null, 2), 'utf-8');
-  }
-
-  getTab(name: string): Tab | undefined {
-    return this.state[name];
+  async getTab(name: string): Promise<Tab | undefined> {
+    try {
+      const data = await fs.readFile(this.getTabPath(name), 'utf-8');
+      return JSON.parse(data);
+    } catch (err) {
+      // Tab file doesn't exist
+      return undefined;
+    }
   }
 
   async setTab(name: string, tab: Tab): Promise<void> {
-    this.state[name] = tab;
-    await this.save();
+    validateTabName(name);
+    await fs.writeFile(this.getTabPath(name), JSON.stringify(tab, null, 2), 'utf-8');
   }
 
   async updateTab(name: string, updates: Partial<Tab>): Promise<void> {
-    const existing = this.state[name];
+    const existing = await this.getTab(name);
     if (!existing) {
       throw new Error(`Tab "${name}" does not exist`);
     }
-    this.state[name] = { ...existing, ...updates };
-    await this.save();
+    const updated = { ...existing, ...updates };
+    await fs.writeFile(this.getTabPath(name), JSON.stringify(updated, null, 2), 'utf-8');
   }
 
   async deleteTab(name: string): Promise<void> {
-    delete this.state[name];
-    await this.save();
+    try {
+      await fs.unlink(this.getTabPath(name));
+    } catch (err) {
+      // File might not exist, ignore
+    }
   }
 
-  listTabs(): string[] {
-    return Object.keys(this.state);
+  async listTabs(): Promise<string[]> {
+    try {
+      const files = await fs.readdir(TABS_DIR);
+      return files
+        .filter(file => file.endsWith('.json'))
+        .map(file => file.slice(0, -5)); // Remove .json extension
+    } catch (err) {
+      // Directory might not exist yet
+      return [];
+    }
   }
 
-  getAllTabs(): TabsState {
-    return this.state;
+  async getAllTabs(): Promise<TabsState> {
+    const tabNames = await this.listTabs();
+    const tabs: TabsState = {};
+
+    for (const name of tabNames) {
+      const tab = await this.getTab(name);
+      if (tab) {
+        tabs[name] = tab;
+      }
+    }
+
+    return tabs;
   }
 }
 

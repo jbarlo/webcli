@@ -8,7 +8,7 @@ export function createListCommand(): Command {
       try {
         await stateManager.init();
 
-        const tabs = stateManager.getAllTabs();
+        const tabs = await stateManager.getAllTabs();
         const names = Object.keys(tabs);
 
         if (names.length === 0) {

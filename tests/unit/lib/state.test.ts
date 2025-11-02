@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { vol } from 'memfs';
-import { StateManager } from '../../../src/lib/state.js';
+import { StateManager, validateTabName } from '../../../src/lib/state.js';
 import { createMockTab } from '../../helpers/mocks.js';
 
 // Mock fs/promises to use memfs
@@ -23,7 +23,7 @@ vi.mock('os', () => ({
 describe('StateManager', () => {
   let stateManager: StateManager;
   const testStateDir = '/home/test/.web-cli';
-  const testStateFile = `${testStateDir}/tabs.json`;
+  const testTabsDir = `${testStateDir}/tabs`;
 
   beforeEach(async () => {
     // Reset memfs before each test
@@ -37,33 +37,38 @@ describe('StateManager', () => {
     vol.reset();
   });
 
+  describe('validateTabName', () => {
+    it('should accept valid tab names', () => {
+      expect(() => validateTabName('test')).not.toThrow();
+      expect(() => validateTabName('test-tab')).not.toThrow();
+      expect(() => validateTabName('test_tab')).not.toThrow();
+      expect(() => validateTabName('test123')).not.toThrow();
+      expect(() => validateTabName('a')).not.toThrow();
+    });
+
+    it('should reject invalid tab names', () => {
+      expect(() => validateTabName('')).toThrow();
+      expect(() => validateTabName('test tab')).toThrow(); // spaces
+      expect(() => validateTabName('test/tab')).toThrow(); // slashes
+      expect(() => validateTabName('test.tab')).toThrow(); // dots
+      expect(() => validateTabName('a'.repeat(51))).toThrow(); // too long
+      expect(() => validateTabName('test@tab')).toThrow(); // special chars
+    });
+  });
+
   describe('init', () => {
-    it('should create state directory if it does not exist', async () => {
+    it('should create tabs directory if it does not exist', async () => {
       await stateManager.init();
 
-      const stats = vol.statSync(testStateDir);
+      const stats = vol.statSync(testTabsDir);
       expect(stats.isDirectory()).toBe(true);
     });
 
-    it('should load existing state from file', async () => {
-      const existingState = {
-        'test-tab': createMockTab({ current_url: 'https://example.com/test' })
-      };
-
-      vol.mkdirSync(testStateDir, { recursive: true });
-      vol.writeFileSync(testStateFile, JSON.stringify(existingState));
-
+    it('should start with empty state if directory is empty', async () => {
       await stateManager.init();
 
-      const tab = stateManager.getTab('test-tab');
-      expect(tab).toBeDefined();
-      expect(tab?.current_url).toBe('https://example.com/test');
-    });
-
-    it('should start with empty state if file does not exist', async () => {
-      await stateManager.init();
-
-      expect(stateManager.listTabs()).toEqual([]);
+      const tabs = await stateManager.listTabs();
+      expect(tabs).toEqual([]);
     });
   });
 
@@ -77,7 +82,7 @@ describe('StateManager', () => {
 
       await stateManager.setTab('new-tab', tab);
 
-      const retrieved = stateManager.getTab('new-tab');
+      const retrieved = await stateManager.getTab('new-tab');
       expect(retrieved).toEqual(tab);
     });
 
@@ -88,18 +93,25 @@ describe('StateManager', () => {
       await stateManager.setTab('tab', tab1);
       await stateManager.setTab('tab', tab2);
 
-      const retrieved = stateManager.getTab('tab');
+      const retrieved = await stateManager.getTab('tab');
       expect(retrieved?.current_url).toBe('https://example.com/2');
     });
 
-    it('should persist to filesystem', async () => {
+    it('should persist to filesystem as individual file', async () => {
       const tab = createMockTab({ current_url: 'https://example.com/persist' });
 
       await stateManager.setTab('persist-tab', tab);
 
-      const fileContents = vol.readFileSync(testStateFile, 'utf-8') as string;
+      const tabFile = `${testTabsDir}/persist-tab.json`;
+      const fileContents = vol.readFileSync(tabFile, 'utf-8') as string;
       const parsed = JSON.parse(fileContents);
-      expect(parsed['persist-tab'].current_url).toBe('https://example.com/persist');
+      expect(parsed.current_url).toBe('https://example.com/persist');
+    });
+
+    it('should reject invalid tab names', async () => {
+      const tab = createMockTab();
+      await expect(stateManager.setTab('invalid name', tab)).rejects.toThrow();
+      await expect(stateManager.setTab('invalid/name', tab)).rejects.toThrow();
     });
   });
 
@@ -118,7 +130,7 @@ describe('StateManager', () => {
         current_url: 'https://example.com/updated'
       });
 
-      const retrieved = stateManager.getTab('update-tab');
+      const retrieved = await stateManager.getTab('update-tab');
       expect(retrieved?.current_url).toBe('https://example.com/updated');
       expect(retrieved?.last_updated).toBe(tab.last_updated);
     });
@@ -141,18 +153,20 @@ describe('StateManager', () => {
 
       await stateManager.deleteTab('delete-me');
 
-      expect(stateManager.getTab('delete-me')).toBeUndefined();
+      const retrieved = await stateManager.getTab('delete-me');
+      expect(retrieved).toBeUndefined();
     });
 
-    it('should persist deletion to filesystem', async () => {
+    it('should remove tab file from filesystem', async () => {
       const tab = createMockTab();
       await stateManager.setTab('delete-me', tab);
 
+      const tabFile = `${testTabsDir}/delete-me.json`;
+      expect(vol.existsSync(tabFile)).toBe(true);
+
       await stateManager.deleteTab('delete-me');
 
-      const fileContents = vol.readFileSync(testStateFile, 'utf-8') as string;
-      const parsed = JSON.parse(fileContents);
-      expect(parsed['delete-me']).toBeUndefined();
+      expect(vol.existsSync(tabFile)).toBe(false);
     });
   });
 
@@ -162,7 +176,8 @@ describe('StateManager', () => {
     });
 
     it('should return empty array when no tabs', async () => {
-      expect(stateManager.listTabs()).toEqual([]);
+      const tabs = await stateManager.listTabs();
+      expect(tabs).toEqual([]);
     });
 
     it('should return all tab names', async () => {
@@ -170,7 +185,7 @@ describe('StateManager', () => {
       await stateManager.setTab('tab2', createMockTab());
       await stateManager.setTab('tab3', createMockTab());
 
-      const names = stateManager.listTabs();
+      const names = await stateManager.listTabs();
       expect(names).toHaveLength(3);
       expect(names).toContain('tab1');
       expect(names).toContain('tab2');
@@ -184,7 +199,8 @@ describe('StateManager', () => {
     });
 
     it('should return empty object when no tabs', async () => {
-      expect(stateManager.getAllTabs()).toEqual({});
+      const all = await stateManager.getAllTabs();
+      expect(all).toEqual({});
     });
 
     it('should return all tabs', async () => {
@@ -194,7 +210,7 @@ describe('StateManager', () => {
       await stateManager.setTab('tab1', tab1);
       await stateManager.setTab('tab2', tab2);
 
-      const all = stateManager.getAllTabs();
+      const all = await stateManager.getAllTabs();
       expect(all).toHaveProperty('tab1');
       expect(all).toHaveProperty('tab2');
       expect(all.tab1).toEqual(tab1);

@@ -20,7 +20,7 @@ export function createTabCommand(): Command {
         // Initialize LLM parser (loads API key from env)
         await llmParser.init();
 
-        const tabData = stateManager.getTab(name);
+        const tabData = await stateManager.getTab(name);
         if (!tabData) {
           console.error(`Error: Tab "${name}" does not exist`);
           console.error(`Use "web-cli nav <url> ${name}" to create it`);

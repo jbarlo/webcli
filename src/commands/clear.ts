@@ -9,7 +9,7 @@ export function createClearCommand(): Command {
       try {
         await stateManager.init();
 
-        const tab = stateManager.getTab(name);
+        const tab = await stateManager.getTab(name);
         if (!tab) {
           console.error(`Error: Tab "${name}" does not exist`);
           process.exit(1);

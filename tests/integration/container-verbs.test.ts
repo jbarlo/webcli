@@ -71,7 +71,7 @@ describe('Container Verbs Integration', () => {
       }
     });
 
-    const tab = stateManager.getTab('test-tab');
+    const tab = await stateManager.getTab('test-tab');
     expect(tab).toBeDefined();
     expect(tab!.verb_cache).toBeDefined();
     expect(tab!.verb_cache!['products']).toBeDefined();
@@ -107,7 +107,7 @@ describe('Container Verbs Integration', () => {
       }
     });
 
-    const tab = stateManager.getTab('test-tab');
+    const tab = await stateManager.getTab('test-tab');
     const products = tab!.verb_cache!['products'];
 
     expect(products.subverbs).toBeDefined();
@@ -155,7 +155,7 @@ describe('Container Verbs Integration', () => {
       }
     });
 
-    const tab = stateManager.getTab('test-tab');
+    const tab = await stateManager.getTab('test-tab');
     const electronics = tab!.verb_cache!['electronics'];
 
     expect(electronics.subverbs).toHaveLength(1);
@@ -203,7 +203,7 @@ describe('Container Verbs Integration', () => {
       }
     });
 
-    const tab = stateManager.getTab('test-tab');
+    const tab = await stateManager.getTab('test-tab');
     const verbs = Object.values(tab!.verb_cache!);
 
     expect(verbs).toHaveLength(3);
@@ -252,7 +252,7 @@ describe('Container Verbs Integration', () => {
     const stateManager2 = new StateManager();
     await stateManager2.init();
 
-    const tab = stateManager2.getTab('persist-test');
+    const tab = await stateManager2.getTab('persist-test');
     expect(tab).toBeDefined();
     expect(tab!.verb_cache!['menu'].subverbs).toHaveLength(2);
     expect(tab!.verb_cache!['menu'].subverbs![0].name).toBe('about');
