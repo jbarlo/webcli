@@ -168,7 +168,7 @@ IMPORTANT: Respond with ONLY valid JSON in this exact format:
       for await (const message of query({
         prompt,
         options: {
-          model: 'claude-sonnet-4-5',
+          model: 'claude-haiku-4-5',
           permissionMode: 'bypassPermissions', // No interactive prompts
           systemPrompt: 'You are a precise JSON generator. Always output valid JSON only, no markdown, no explanations.',
         }
