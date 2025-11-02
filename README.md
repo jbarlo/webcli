@@ -10,7 +10,6 @@ Either [install Nix >=v2.31.0](https://nixos.org/download/), or
 
 - Node.js 22+
 - `links` text browser (install via `brew install links` or `apt install links`)
-- Anthropic API key for LLM-enhanced parsing
 
 ## Quick Start
 
@@ -19,10 +18,6 @@ Either [install Nix >=v2.31.0](https://nixos.org/download/), or
 git clone <repo>
 cd web-cli
 pnpm install
-
-# Set up environment (optional but recommended)
-cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
 
 # Build
 pnpm build
@@ -124,11 +119,6 @@ node dist/index.js clear shop
 - **Hybrid Parsing** - HTML parser for speed, LLM for accuracy
 - **State Management** - Tabs stored in `~/.web-cli/tabs.json`
 - **Smart Caching** - Verb cache expires after 5 minutes
-
-## Environment Variables
-
-- `ANTHROPIC_API_KEY` - (Recommended) Enable LLM-enhanced parsing and execution
-  - Get your key from: https://console.anthropic.com/
 
 ## Development
 
